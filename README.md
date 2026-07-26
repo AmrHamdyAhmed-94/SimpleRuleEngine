@@ -33,11 +33,31 @@ The app connects to `localhost:5432` by default. Override via standard Spring `S
 
 ## Running Locally
 
+**Default (PostgreSQL)** — requires a running PostgreSQL instance (see Database Setup above):
+
 ```bash
 ./mvnw spring-boot:run
 ```
 
-On first startup, Hibernate creates the schema and `data.sql` seeds four sample rules automatically.
+**Quick evaluator mode (H2, no PostgreSQL needed)**:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=h2
+```
+
+On first startup, Hibernate creates the schema and seeds four sample rules automatically. The H2 profile uses an in-memory database; all data is lost when the process stops.
+
+### H2 Console (h2 profile only)
+
+```
+http://localhost:8080/h2-console
+```
+
+| Field | Value |
+|---|---|
+| JDBC URL | `jdbc:h2:mem:simple_rule_engine` |
+| Username | `sa` |
+| Password | _(empty)_ |
 
 ## Swagger UI
 
