@@ -16,8 +16,10 @@ public class RuleEngineController {
     private final RuleEngineService ruleEngineService;
 
     @PostMapping("/execute")
-    public RuleExecutionResponse execute(@RequestParam RuleType type,
-                                          @Valid @RequestBody RuleExecutionRequest request) {
-        return ruleEngineService.execute(request.getTransaction(), type);
+    public RuleExecutionResponse execute(
+            @RequestParam RuleType type,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody RuleExecutionRequest request) {
+        return ruleEngineService.execute(request.getTransaction(), type, idempotencyKey);
     }
 }

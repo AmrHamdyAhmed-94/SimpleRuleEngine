@@ -1,4 +1,4 @@
-package com.simpleRuleEngine.strategy;
+package com.simpleRuleEngine.service.strategy;
 
 import com.simpleRuleEngine.enums.RuleType;
 import com.simpleRuleEngine.exception.UnsupportedRuleTypeException;

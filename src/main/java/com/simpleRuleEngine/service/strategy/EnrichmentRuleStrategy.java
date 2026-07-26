@@ -1,4 +1,4 @@
-package com.simpleRuleEngine.strategy;
+package com.simpleRuleEngine.service.strategy;
 
 import com.simpleRuleEngine.dto.response.AppliedRuleResponse;
 import com.simpleRuleEngine.dto.response.RuleExecutionResponse;
@@ -14,34 +14,33 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-public class RoutingRuleStrategy implements RuleExecutionStrategy {
+public class EnrichmentRuleStrategy implements RuleExecutionStrategy {
 
     private final RuleConditionEvaluator conditionEvaluator;
     private final RuleActionExecutor actionExecutor;
 
     @Override
     public RuleType getRuleType() {
-        return RuleType.ROUTING;
+        return RuleType.ENRICHMENT;
     }
 
     @Override
     public RuleExecutionResponse execute(PaymentTransaction transaction, List<BusinessRule> rules) {
-        return rules.stream()
+        List<BusinessRule> matchedRules = rules.stream()
                 .filter(rule -> conditionEvaluator.evaluate(transaction, rule))
-                .findFirst()
-                .map(rule -> {
-                    actionExecutor.execute(transaction, rule);
-                    return RuleExecutionResponse.builder()
-                            .transaction(transaction)
-                            .appliedRuleCount(1)
-                            .appliedRules(List.of(toAppliedRuleResponse(rule)))
-                            .build();
-                })
-                .orElse(RuleExecutionResponse.builder()
-                        .transaction(transaction)
-                        .appliedRuleCount(0)
-                        .appliedRules(List.of())
-                        .build());
+                .toList();
+
+        matchedRules.forEach(rule -> actionExecutor.execute(transaction, rule));
+
+        List<AppliedRuleResponse> appliedRules = matchedRules.stream()
+                .map(this::toAppliedRuleResponse)
+                .toList();
+
+        return RuleExecutionResponse.builder()
+                .transaction(transaction)
+                .appliedRuleCount(appliedRules.size())
+                .appliedRules(appliedRules)
+                .build();
     }
 
     private AppliedRuleResponse toAppliedRuleResponse(BusinessRule rule) {
