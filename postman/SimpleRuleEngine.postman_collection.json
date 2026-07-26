@@ -1,0 +1,416 @@
+{
+  "info": {
+    "_postman_id": "066808a8-41e1-40c8-93a7-simple-rule-engine",
+    "name": "SimpleRuleEngine",
+    "description": "Manual test collection for the Simple Rule Engine Spring Boot API. Import the SimpleRuleEngine Local environment and run the app before sending requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health / Discovery",
+      "item": [
+        {
+          "name": "OpenAPI Docs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v3/api-docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["v3", "api-docs"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('OpenAPI docs are available', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Business Rules",
+      "item": [
+        {
+          "name": "List Business Rules",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/business-rules",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business-rules"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Rules listed', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Seed rules exist after startup', function () {",
+                  "  const codes = pm.response.json().map(rule => rule.ruleCode);",
+                  "  pm.expect(codes).to.include('ENRICH_INBOUND_STATUS');",
+                  "  pm.expect(codes).to.include('ROUTE_HIGH_VALUE_TO_PRIORITY_QUEUE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Seed Rule By Code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/business-rules/ENRICH_INBOUND_STATUS",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business-rules", "ENRICH_INBOUND_STATUS"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Seed rule returned', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().ruleCode).to.eql('ENRICH_INBOUND_STATUS');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Custom Enrichment Rule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ruleCode\": \"{{customRuleCode}}\",\n  \"name\": \"Set test status for SAR transactions\",\n  \"ruleType\": \"ENRICHMENT\",\n  \"conditionField\": \"currency\",\n  \"conditionOperator\": \"EQUALS\",\n  \"conditionValue\": \"SAR\",\n  \"actionField\": \"status\",\n  \"actionValue\": \"SAR_RECEIVED\",\n  \"priority\": 30,\n  \"enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/business-rules",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business-rules"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Rule created or already exists conflict is understandable', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Custom Enrichment Rule",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Set test description for SAR transactions\",\n  \"ruleType\": \"ENRICHMENT\",\n  \"conditionField\": \"currency\",\n  \"conditionOperator\": \"EQUALS\",\n  \"conditionValue\": \"SAR\",\n  \"actionField\": \"description\",\n  \"actionValue\": \"SAR transaction matched custom rule\",\n  \"priority\": 30,\n  \"enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/business-rules/{{customRuleCode}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business-rules", "{{customRuleCode}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Rule updated', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().ruleCode).to.eql(pm.environment.get('customRuleCode'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rule Execution",
+      "item": [
+        {
+          "name": "Execute ENRICHMENT - Seed Rules",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "enrichment-seed-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction\": {\n    \"transactionReference\": \"TXN-ENRICH-001\",\n    \"direction\": \"INBOUND\",\n    \"amount\": 6000,\n    \"currency\": \"USD\",\n    \"status\": \"PENDING\",\n    \"route\": null,\n    \"description\": null\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/rule-engine/execute?type=ENRICHMENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rule-engine", "execute"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "ENRICHMENT"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Enrichment executed', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.transaction.status).to.eql('RECEIVED');",
+                  "  pm.expect(body.transaction.description).to.eql('High value transaction');",
+                  "  pm.expect(body.appliedRuleCount).to.be.at.least(2);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Execute ENRICHMENT - Same Idempotency Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "enrichment-seed-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction\": {\n    \"transactionReference\": \"TXN-ENRICH-RETRY\",\n    \"direction\": \"OUTBOUND\",\n    \"amount\": 50,\n    \"currency\": \"EUR\",\n    \"status\": \"PENDING\",\n    \"route\": null,\n    \"description\": null\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/rule-engine/execute?type=ENRICHMENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rule-engine", "execute"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "ENRICHMENT"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Cached idempotent response returned', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.transaction.transactionReference).to.eql('TXN-ENRICH-001');",
+                  "  pm.expect(body.appliedRules).to.be.an('array').that.is.not.empty;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Execute ROUTING - High Value Wins",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "routing-high-value-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction\": {\n    \"transactionReference\": \"TXN-ROUTE-001\",\n    \"direction\": \"INBOUND\",\n    \"amount\": 6000,\n    \"currency\": \"USD\",\n    \"status\": \"PENDING\",\n    \"route\": null,\n    \"description\": null\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/rule-engine/execute?type=ROUTING",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rule-engine", "execute"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "ROUTING"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('High value route wins over USD route', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.transaction.route).to.eql('HIGH_VALUE_QUEUE');",
+                  "  pm.expect(body.appliedRuleCount).to.eql(1);",
+                  "  pm.expect(body.appliedRules[0].ruleCode).to.eql('ROUTE_HIGH_VALUE_TO_PRIORITY_QUEUE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Execute ROUTING - USD Fallback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "routing-usd-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction\": {\n    \"transactionReference\": \"TXN-ROUTE-002\",\n    \"direction\": \"OUTBOUND\",\n    \"amount\": 100,\n    \"currency\": \"USD\",\n    \"status\": \"PENDING\",\n    \"route\": null,\n    \"description\": null\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/rule-engine/execute?type=ROUTING",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rule-engine", "execute"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "ROUTING"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('USD fallback route applied', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.transaction.route).to.eql('USD_QUEUE');",
+                  "  pm.expect(body.appliedRuleCount).to.eql(1);",
+                  "  pm.expect(body.appliedRules[0].ruleCode).to.eql('ROUTE_USD_TO_USD_QUEUE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Execute ROUTING - No Match",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "routing-no-match-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction\": {\n    \"transactionReference\": \"TXN-ROUTE-003\",\n    \"direction\": \"OUTBOUND\",\n    \"amount\": 100,\n    \"currency\": \"EUR\",\n    \"status\": \"PENDING\",\n    \"route\": null,\n    \"description\": null\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/rule-engine/execute?type=ROUTING",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rule-engine", "execute"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "ROUTING"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('No route matched', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.transaction.route).to.eql(null);",
+                  "  pm.expect(body.appliedRuleCount).to.eql(0);",
+                  "  pm.expect(body.appliedRules).to.be.empty;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
