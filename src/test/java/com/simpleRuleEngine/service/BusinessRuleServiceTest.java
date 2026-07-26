@@ -97,13 +97,12 @@ class BusinessRuleServiceTest {
     }
 
     @Test
-    void create_normalizesRuleCodeAndDefaultsEnabledToTrue() {
+    void create_normalizesRuleCode() {
         BusinessRuleCreateRequest req = validCreateRequest();
         req.setRuleCode("  high_value_route  ");
 
         BusinessRule mappedEntity = savedRule();
         mappedEntity.setRuleCode(null);
-        mappedEntity.setEnabled(null);
 
         when(mapper.toEntity(req)).thenReturn(mappedEntity);
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -112,7 +111,6 @@ class BusinessRuleServiceTest {
         service.create(req);
 
         assertThat(mappedEntity.getRuleCode()).isEqualTo("HIGH_VALUE_ROUTE");
-        assertThat(mappedEntity.getEnabled()).isTrue();
         verify(repository).save(mappedEntity);
     }
 

@@ -47,6 +47,7 @@ public class BusinessRule {
     @Column(nullable = false)
     private Integer priority;
 
+    @Builder.Default
     @Column(nullable = false)
-    private Boolean enabled;
+    private Boolean enabled = Boolean.TRUE;
 }

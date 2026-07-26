@@ -21,5 +21,6 @@ public interface BusinessRuleMapper {
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "ruleCode", ignore = true)
     void updateEntity(BusinessRuleUpdateRequest request, @MappingTarget BusinessRule rule);
 }

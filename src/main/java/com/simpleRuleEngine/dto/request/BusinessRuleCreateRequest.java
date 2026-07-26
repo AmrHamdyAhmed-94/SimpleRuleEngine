@@ -40,5 +40,5 @@ public class BusinessRuleCreateRequest {
     @NotNull
     private Integer priority;
 
-    private Boolean enabled;
+    private Boolean enabled = Boolean.TRUE;
 }

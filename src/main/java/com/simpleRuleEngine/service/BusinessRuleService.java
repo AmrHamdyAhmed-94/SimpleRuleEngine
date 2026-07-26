@@ -24,9 +24,6 @@ public class BusinessRuleService {
     public BusinessRuleResponse create(BusinessRuleCreateRequest request) {
         BusinessRule rule = mapper.toEntity(request);
         rule.setRuleCode(request.getRuleCode().trim().toUpperCase());
-        if (rule.getEnabled() == null) {
-            rule.setEnabled(true);
-        }
         return mapper.toResponse(repository.save(rule));
     }
 
