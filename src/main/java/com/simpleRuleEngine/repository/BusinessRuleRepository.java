@@ -11,7 +11,9 @@ public interface BusinessRuleRepository extends JpaRepository<BusinessRule, Long
 
     Optional<BusinessRule> findByRuleCode(String ruleCode);
 
-    List<BusinessRule> findByEnabledTrueAndRuleTypeOrderByPriorityAsc(RuleType ruleType);
+    boolean existsByRuleCode(String ruleCode);
 
-    List<BusinessRule> findByEnabledTrueAndRuleTypeOrderByPriorityDesc(RuleType ruleType);
+    List<BusinessRule> findByEnabledTrueAndRuleTypeOrderByPriorityAscIdAsc(RuleType ruleType);
+
+    List<BusinessRule> findByEnabledTrueAndRuleTypeOrderByPriorityDescIdAsc(RuleType ruleType);
 }

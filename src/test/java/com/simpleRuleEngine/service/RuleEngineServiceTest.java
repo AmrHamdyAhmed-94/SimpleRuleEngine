@@ -42,6 +42,8 @@ class RuleEngineServiceTest {
     @InjectMocks
     private RuleEngineService ruleEngineService;
 
+    private static final String FINGERPRINT = "test-fingerprint";
+
     private PaymentTransaction sampleTransaction() {
         return PaymentTransaction.builder()
                 .transactionReference("TXN-001")
@@ -76,8 +78,8 @@ class RuleEngineServiceTest {
 
         assertThat(result).isEqualTo(response);
         verify(businessRuleService).findEnabledByTypeAsc(RuleType.ENRICHMENT);
-        verify(logService).saveSuccess(eq(null), any(PaymentTransaction.class), eq(response), eq(RuleType.ENRICHMENT));
-        verify(logService, never()).saveFailure(any(), any(), any(), any());
+        verify(logService).saveSuccess(isNull(), any(PaymentTransaction.class), eq(response), eq(RuleType.ENRICHMENT), isNull());
+        verify(logService, never()).saveFailure(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -94,7 +96,7 @@ class RuleEngineServiceTest {
 
         assertThat(result).isEqualTo(response);
         verify(businessRuleService).findEnabledByTypeDesc(RuleType.ROUTING);
-        verify(logService).saveSuccess(eq(null), any(PaymentTransaction.class), eq(response), eq(RuleType.ROUTING));
+        verify(logService).saveSuccess(isNull(), any(PaymentTransaction.class), eq(response), eq(RuleType.ROUTING), isNull());
     }
 
     @Test
@@ -102,14 +104,15 @@ class RuleEngineServiceTest {
         PaymentTransaction transaction = sampleTransaction();
         RuleExecutionResponse cached = sampleResponse(transaction);
 
-        when(logService.resolveIdempotency("KEY-123")).thenReturn(Optional.of(cached));
+        when(logService.computeFingerprint(eq(RuleType.ENRICHMENT), any())).thenReturn(FINGERPRINT);
+        when(logService.resolveIdempotency("KEY-123", FINGERPRINT)).thenReturn(Optional.of(cached));
 
         RuleExecutionResponse result = ruleEngineService.execute(transaction, RuleType.ENRICHMENT, "KEY-123");
 
         assertThat(result).isEqualTo(cached);
         verifyNoInteractions(businessRuleService, strategyRegistry, strategy);
-        verify(logService, never()).saveSuccess(any(), any(), any(), any());
-        verify(logService, never()).saveFailure(any(), any(), any(), any());
+        verify(logService, never()).saveSuccess(any(), any(), any(), any(), any());
+        verify(logService, never()).saveFailure(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -117,7 +120,8 @@ class RuleEngineServiceTest {
         PaymentTransaction transaction = sampleTransaction();
         RuleExecutionResponse cached = sampleResponse(transaction);
 
-        when(logService.resolveIdempotency("KEY-123")).thenReturn(Optional.of(cached));
+        when(logService.computeFingerprint(any(), any())).thenReturn(FINGERPRINT);
+        when(logService.resolveIdempotency(eq("KEY-123"), any())).thenReturn(Optional.of(cached));
 
         RuleExecutionResponse result = ruleEngineService.execute(transaction, RuleType.ENRICHMENT, "KEY-123");
 
@@ -132,12 +136,13 @@ class RuleEngineServiceTest {
         PaymentTransaction transaction = sampleTransaction();
         RuleExecutionResponse cached = sampleResponse(transaction);
 
-        when(logService.resolveIdempotency("KEY-123")).thenReturn(Optional.of(cached));
+        when(logService.computeFingerprint(any(), any())).thenReturn(FINGERPRINT);
+        when(logService.resolveIdempotency(eq("KEY-123"), any())).thenReturn(Optional.of(cached));
 
         RuleExecutionResponse result = ruleEngineService.execute(transaction, RuleType.ENRICHMENT, "  KEY-123  ");
 
         assertThat(result).isEqualTo(cached);
-        verify(logService).resolveIdempotency("KEY-123");
+        verify(logService).resolveIdempotency(eq("KEY-123"), any());
     }
 
     @Test
@@ -146,14 +151,15 @@ class RuleEngineServiceTest {
         List<BusinessRule> rules = List.of();
         RuleExecutionResponse response = sampleResponse(transaction);
 
-        when(logService.resolveIdempotency("NEW-KEY")).thenReturn(Optional.empty());
+        when(logService.computeFingerprint(any(), any())).thenReturn(FINGERPRINT);
+        when(logService.resolveIdempotency(eq("NEW-KEY"), any())).thenReturn(Optional.empty());
         when(businessRuleService.findEnabledByTypeAsc(RuleType.ENRICHMENT)).thenReturn(rules);
         when(strategyRegistry.getStrategy(RuleType.ENRICHMENT)).thenReturn(strategy);
         when(strategy.execute(transaction, rules)).thenReturn(response);
 
         ruleEngineService.execute(transaction, RuleType.ENRICHMENT, "NEW-KEY");
 
-        verify(logService).saveSuccess(eq("NEW-KEY"), any(PaymentTransaction.class), eq(response), eq(RuleType.ENRICHMENT));
+        verify(logService).saveSuccess(eq("NEW-KEY"), any(PaymentTransaction.class), eq(response), eq(RuleType.ENRICHMENT), eq(FINGERPRINT));
     }
 
     @Test
@@ -168,8 +174,9 @@ class RuleEngineServiceTest {
 
         ruleEngineService.execute(transaction, RuleType.ENRICHMENT, "   ");
 
-        verify(logService, never()).resolveIdempotency(any());
-        verify(logService).saveSuccess(eq(null), any(PaymentTransaction.class), eq(response), eq(RuleType.ENRICHMENT));
+        verify(logService, never()).computeFingerprint(any(), any());
+        verify(logService, never()).resolveIdempotency(any(), any());
+        verify(logService).saveSuccess(isNull(), any(PaymentTransaction.class), eq(response), eq(RuleType.ENRICHMENT), isNull());
     }
 
     @Test
@@ -194,7 +201,7 @@ class RuleEngineServiceTest {
         ruleEngineService.execute(transaction, RuleType.ENRICHMENT, null);
 
         ArgumentCaptor<PaymentTransaction> originalCaptor = ArgumentCaptor.forClass(PaymentTransaction.class);
-        verify(logService).saveSuccess(eq(null), originalCaptor.capture(), any(), eq(RuleType.ENRICHMENT));
+        verify(logService).saveSuccess(isNull(), originalCaptor.capture(), any(), eq(RuleType.ENRICHMENT), isNull());
 
         PaymentTransaction capturedOriginal = originalCaptor.getValue();
         assertThat(capturedOriginal.getStatus()).isEqualTo("PENDING");
@@ -206,16 +213,34 @@ class RuleEngineServiceTest {
     void execute_failedIdempotencyKey_throwsAndDoesNotExecute() {
         PaymentTransaction transaction = sampleTransaction();
 
-        when(logService.resolveIdempotency("FAILED-KEY"))
-                .thenThrow(new IdempotencyConflictException("Execution with idempotency key 'FAILED-KEY' previously failed and cannot be retried"));
+        when(logService.computeFingerprint(any(), any())).thenReturn(FINGERPRINT);
+        when(logService.resolveIdempotency(eq("FAILED-KEY"), any()))
+                .thenThrow(new IdempotencyConflictException(
+                        "Execution with idempotency key 'FAILED-KEY' previously failed and cannot be retried"));
 
         assertThatThrownBy(() -> ruleEngineService.execute(transaction, RuleType.ENRICHMENT, "FAILED-KEY"))
                 .isInstanceOf(IdempotencyConflictException.class)
                 .hasMessageContaining("FAILED-KEY");
 
         verifyNoInteractions(businessRuleService, strategyRegistry, strategy);
-        verify(logService, never()).saveSuccess(any(), any(), any(), any());
-        verify(logService, never()).saveFailure(any(), any(), any(), any());
+        verify(logService, never()).saveSuccess(any(), any(), any(), any(), any());
+        verify(logService, never()).saveFailure(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void execute_fingerprintMismatch_throwsConflict() {
+        PaymentTransaction transaction = sampleTransaction();
+
+        when(logService.computeFingerprint(any(), any())).thenReturn(FINGERPRINT);
+        when(logService.resolveIdempotency(eq("KEY-REUSED"), eq(FINGERPRINT)))
+                .thenThrow(new IdempotencyConflictException(
+                        "Idempotency key 'KEY-REUSED' was already used for a different request"));
+
+        assertThatThrownBy(() -> ruleEngineService.execute(transaction, RuleType.ENRICHMENT, "KEY-REUSED"))
+                .isInstanceOf(IdempotencyConflictException.class)
+                .hasMessageContaining("KEY-REUSED");
+
+        verifyNoInteractions(businessRuleService, strategyRegistry, strategy);
     }
 
     @Test
@@ -224,6 +249,8 @@ class RuleEngineServiceTest {
         List<BusinessRule> rules = List.of();
         RuntimeException error = new RuntimeException("Strategy failure");
 
+        when(logService.computeFingerprint(any(), any())).thenReturn(FINGERPRINT);
+        when(logService.resolveIdempotency(eq("KEY-ERR"), any())).thenReturn(Optional.empty());
         when(businessRuleService.findEnabledByTypeAsc(RuleType.ENRICHMENT)).thenReturn(rules);
         when(strategyRegistry.getStrategy(RuleType.ENRICHMENT)).thenReturn(strategy);
         when(strategy.execute(transaction, rules)).thenThrow(error);
@@ -233,8 +260,8 @@ class RuleEngineServiceTest {
                 .hasMessage("Strategy failure");
 
         ArgumentCaptor<PaymentTransaction> originalCaptor = ArgumentCaptor.forClass(PaymentTransaction.class);
-        verify(logService).saveFailure(eq("KEY-ERR"), originalCaptor.capture(), eq(RuleType.ENRICHMENT), eq("Strategy failure"));
+        verify(logService).saveFailure(eq("KEY-ERR"), originalCaptor.capture(), eq(RuleType.ENRICHMENT), eq("Strategy failure"), eq(FINGERPRINT));
         assertThat(originalCaptor.getValue().getStatus()).isEqualTo("PENDING");
-        verify(logService, never()).saveSuccess(any(), any(), any(), any());
+        verify(logService, never()).saveSuccess(any(), any(), any(), any(), any());
     }
 }

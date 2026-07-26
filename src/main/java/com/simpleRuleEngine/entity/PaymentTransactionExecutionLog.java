@@ -39,6 +39,9 @@ public class PaymentTransactionExecutionLog {
     @Column(name = "response_json", columnDefinition = "text")
     private String responseJson;
 
+    @Column(name = "request_fingerprint")
+    private String requestFingerprint;
+
     @Column(name = "applied_rule_count")
     private Integer appliedRuleCount;
 

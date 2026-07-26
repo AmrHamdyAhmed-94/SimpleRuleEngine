@@ -15,7 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.Optional;
 
 @Slf4j
@@ -26,9 +30,24 @@ public class RuleExecutionLogService {
     private final PaymentTransactionExecutionLogRepository logRepository;
     private final ObjectMapper objectMapper;
 
-    public Optional<RuleExecutionResponse> resolveIdempotency(String idempotencyKey) {
+    public String computeFingerprint(RuleType ruleType, PaymentTransaction originalSnapshot) {
+        String input = ruleType.name() + "|" + toJson(originalSnapshot);
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
+    public Optional<RuleExecutionResponse> resolveIdempotency(String idempotencyKey, String requestFingerprint) {
         return logRepository.findByIdempotencyKey(idempotencyKey)
                 .map(entry -> {
+                    if (!requestFingerprint.equals(entry.getRequestFingerprint())) {
+                        throw new IdempotencyConflictException(
+                                "Idempotency key '" + idempotencyKey + "' was already used for a different request");
+                    }
                     if (entry.getStatus() == ExecutionStatus.FAILED) {
                         throw new IdempotencyConflictException(
                                 "Execution with idempotency key '" + idempotencyKey + "' previously failed and cannot be retried");
@@ -40,7 +59,7 @@ public class RuleExecutionLogService {
 
     @Transactional
     public void saveSuccess(String idempotencyKey, PaymentTransaction originalSnapshot,
-                            RuleExecutionResponse response, RuleType ruleType) {
+                            RuleExecutionResponse response, RuleType ruleType, String requestFingerprint) {
         PaymentTransactionExecutionLog entry = PaymentTransactionExecutionLog.builder()
                 .idempotencyKey(idempotencyKey)
                 .transactionReference(response.getTransaction().getTransactionReference())
@@ -48,6 +67,7 @@ public class RuleExecutionLogService {
                 .originalTransactionJson(toJson(originalSnapshot))
                 .finalTransactionJson(toJson(response.getTransaction()))
                 .responseJson(toJson(response))
+                .requestFingerprint(requestFingerprint)
                 .appliedRuleCount(response.getAppliedRuleCount())
                 .status(ExecutionStatus.SUCCESS)
                 .createdAt(LocalDateTime.now())
@@ -57,12 +77,13 @@ public class RuleExecutionLogService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveFailure(String idempotencyKey, PaymentTransaction originalSnapshot,
-                            RuleType ruleType, String errorMessage) {
+                            RuleType ruleType, String errorMessage, String requestFingerprint) {
         PaymentTransactionExecutionLog entry = PaymentTransactionExecutionLog.builder()
                 .idempotencyKey(idempotencyKey)
                 .transactionReference(originalSnapshot.getTransactionReference())
                 .ruleType(ruleType)
                 .originalTransactionJson(toJson(originalSnapshot))
+                .requestFingerprint(requestFingerprint)
                 .status(ExecutionStatus.FAILED)
                 .errorMessage(errorMessage)
                 .createdAt(LocalDateTime.now())

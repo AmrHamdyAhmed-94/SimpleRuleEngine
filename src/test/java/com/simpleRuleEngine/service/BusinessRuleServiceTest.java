@@ -3,9 +3,12 @@ package com.simpleRuleEngine.service;
 import com.simpleRuleEngine.dto.request.BusinessRuleCreateRequest;
 import com.simpleRuleEngine.dto.request.BusinessRuleUpdateRequest;
 import com.simpleRuleEngine.dto.response.BusinessRuleResponse;
+import com.simpleRuleEngine.engine.RuleFieldValidator;
 import com.simpleRuleEngine.entity.BusinessRule;
 import com.simpleRuleEngine.enums.ConditionOperator;
 import com.simpleRuleEngine.enums.RuleType;
+import com.simpleRuleEngine.exception.DuplicateRuleCodeException;
+import com.simpleRuleEngine.exception.InvalidRuleException;
 import com.simpleRuleEngine.exception.ResourceNotFoundException;
 import com.simpleRuleEngine.mapper.BusinessRuleMapper;
 import com.simpleRuleEngine.repository.BusinessRuleRepository;
@@ -21,6 +24,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -32,6 +36,9 @@ class BusinessRuleServiceTest {
 
     @Mock
     private BusinessRuleMapper mapper;
+
+    @Mock
+    private RuleFieldValidator ruleFieldValidator;
 
     @InjectMocks
     private BusinessRuleService service;
@@ -104,6 +111,7 @@ class BusinessRuleServiceTest {
         BusinessRule mappedEntity = savedRule();
         mappedEntity.setRuleCode(null);
 
+        when(repository.existsByRuleCode("HIGH_VALUE_ROUTE")).thenReturn(false);
         when(mapper.toEntity(req)).thenReturn(mappedEntity);
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(mapper.toResponse(any())).thenReturn(responseFrom(savedRule()));
@@ -122,6 +130,7 @@ class BusinessRuleServiceTest {
         BusinessRule mappedEntity = savedRule();
         mappedEntity.setEnabled(false);
 
+        when(repository.existsByRuleCode(RULE_CODE)).thenReturn(false);
         when(mapper.toEntity(req)).thenReturn(mappedEntity);
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(mapper.toResponse(any())).thenReturn(responseFrom(mappedEntity));
@@ -129,6 +138,47 @@ class BusinessRuleServiceTest {
         service.create(req);
 
         assertThat(mappedEntity.getEnabled()).isFalse();
+    }
+
+    @Test
+    void create_throwsDuplicateRuleCodeException_whenRuleCodeAlreadyExists() {
+        BusinessRuleCreateRequest req = validCreateRequest();
+        when(repository.existsByRuleCode(RULE_CODE)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(DuplicateRuleCodeException.class)
+                .hasMessageContaining(RULE_CODE);
+
+        verify(repository, never()).save(any());
+        verifyNoInteractions(mapper);
+    }
+
+    @Test
+    void create_throwsInvalidRuleException_whenFieldValidationFails() {
+        BusinessRuleCreateRequest req = validCreateRequest();
+        when(repository.existsByRuleCode(RULE_CODE)).thenReturn(false);
+        doThrow(new InvalidRuleException("Action field does not exist on PaymentTransaction: bogusField"))
+                .when(ruleFieldValidator).validate(anyString(), anyString(), anyString(), anyString());
+
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(InvalidRuleException.class)
+                .hasMessageContaining("bogusField");
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void update_throwsInvalidRuleException_whenFieldValidationFails() {
+        BusinessRule existing = savedRule();
+        when(repository.findByRuleCode(RULE_CODE)).thenReturn(Optional.of(existing));
+        doThrow(new InvalidRuleException("Condition field does not exist on PaymentTransaction: fakeField"))
+                .when(ruleFieldValidator).validate(anyString(), anyString(), anyString(), anyString());
+
+        assertThatThrownBy(() -> service.update(RULE_CODE, validUpdateRequest()))
+                .isInstanceOf(InvalidRuleException.class)
+                .hasMessageContaining("fakeField");
+
+        verify(repository, never()).save(any());
     }
 
     @Test
@@ -208,23 +258,23 @@ class BusinessRuleServiceTest {
 
     @Test
     void findEnabledByTypeAsc_delegatesToRepository() {
-        when(repository.findByEnabledTrueAndRuleTypeOrderByPriorityAsc(RuleType.ENRICHMENT))
+        when(repository.findByEnabledTrueAndRuleTypeOrderByPriorityAscIdAsc(RuleType.ENRICHMENT))
                 .thenReturn(List.of(savedRule()));
 
         List<BusinessRule> result = service.findEnabledByTypeAsc(RuleType.ENRICHMENT);
 
         assertThat(result).hasSize(1);
-        verify(repository).findByEnabledTrueAndRuleTypeOrderByPriorityAsc(RuleType.ENRICHMENT);
+        verify(repository).findByEnabledTrueAndRuleTypeOrderByPriorityAscIdAsc(RuleType.ENRICHMENT);
     }
 
     @Test
     void findEnabledByTypeDesc_delegatesToRepository() {
-        when(repository.findByEnabledTrueAndRuleTypeOrderByPriorityDesc(RuleType.ROUTING))
+        when(repository.findByEnabledTrueAndRuleTypeOrderByPriorityDescIdAsc(RuleType.ROUTING))
                 .thenReturn(List.of(savedRule()));
 
         List<BusinessRule> result = service.findEnabledByTypeDesc(RuleType.ROUTING);
 
         assertThat(result).hasSize(1);
-        verify(repository).findByEnabledTrueAndRuleTypeOrderByPriorityDesc(RuleType.ROUTING);
+        verify(repository).findByEnabledTrueAndRuleTypeOrderByPriorityDescIdAsc(RuleType.ROUTING);
     }
 }

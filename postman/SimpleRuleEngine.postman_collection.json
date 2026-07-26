@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "066808a8-41e1-40c8-93a7-simple-rule-engine",
     "name": "SimpleRuleEngine",
-    "description": "Manual test collection for the Simple Rule Engine Spring Boot API. Import the SimpleRuleEngine Local environment and run the app before sending requests.",
+    "description": "Manual test collection for the Simple Rule Engine Spring Boot API. Import the SimpleRuleEngine Local environment and run the app before sending requests. The collection is re-runnable: CREATE accepts 201 or 409, DELETE accepts 204 or 404.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -102,10 +102,7 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
@@ -122,8 +119,42 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Rule created or already exists conflict is understandable', function () {",
+                  "pm.test('Rule created or already exists (re-runnable)', function () {",
                   "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Rule - Invalid Action Field (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ruleCode\": \"INVALID_FIELD_RULE\",\n  \"name\": \"Rule with non-existent action field\",\n  \"ruleType\": \"ENRICHMENT\",\n  \"conditionField\": \"currency\",\n  \"conditionOperator\": \"EQUALS\",\n  \"conditionValue\": \"USD\",\n  \"actionField\": \"nonExistentField\",\n  \"actionValue\": \"someValue\",\n  \"priority\": 99,\n  \"enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/business-rules",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business-rules"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Invalid action field rejected at create time (400)', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.errorCode).to.eql('INVALID_RULE');",
+                  "  pm.expect(body.message).to.include('nonExistentField');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -136,10 +167,7 @@
           "request": {
             "method": "PUT",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
@@ -165,6 +193,56 @@
               }
             }
           ]
+        },
+        {
+          "name": "Delete Custom Enrichment Rule",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/business-rules/{{customRuleCode}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business-rules", "{{customRuleCode}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Rule deleted (204) or already gone (404) - re-runnable', function () {",
+                  "  pm.expect([204, 404]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Deleted Rule - Expect 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/business-rules/{{customRuleCode}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "business-rules", "{{customRuleCode}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Deleted rule returns 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },
@@ -176,14 +254,8 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "enrichment-seed-001"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "enrichment-seed-001" }
             ],
             "body": {
               "mode": "raw",
@@ -193,12 +265,7 @@
               "raw": "{{baseUrl}}/api/rule-engine/execute?type=ENRICHMENT",
               "host": ["{{baseUrl}}"],
               "path": ["api", "rule-engine", "execute"],
-              "query": [
-                {
-                  "key": "type",
-                  "value": "ENRICHMENT"
-                }
-              ]
+              "query": [{ "key": "type", "value": "ENRICHMENT" }]
             }
           },
           "event": [
@@ -206,7 +273,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Enrichment executed', function () {",
+                  "pm.test('Enrichment executed or idempotent response returned', function () {",
                   "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
                   "  pm.expect(body.transaction.status).to.eql('RECEIVED');",
@@ -220,33 +287,22 @@
           ]
         },
         {
-          "name": "Execute ENRICHMENT - Same Idempotency Key",
+          "name": "Execute ENRICHMENT - Same Idempotency Key (cached response)",
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "enrichment-seed-001"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "enrichment-seed-001" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transaction\": {\n    \"transactionReference\": \"TXN-ENRICH-RETRY\",\n    \"direction\": \"OUTBOUND\",\n    \"amount\": 50,\n    \"currency\": \"EUR\",\n    \"status\": \"PENDING\",\n    \"route\": null,\n    \"description\": null\n  }\n}"
+              "raw": "{\n  \"transaction\": {\n    \"transactionReference\": \"TXN-ENRICH-001\",\n    \"direction\": \"INBOUND\",\n    \"amount\": 6000,\n    \"currency\": \"USD\",\n    \"status\": \"PENDING\",\n    \"route\": null,\n    \"description\": null\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/rule-engine/execute?type=ENRICHMENT",
               "host": ["{{baseUrl}}"],
               "path": ["api", "rule-engine", "execute"],
-              "query": [
-                {
-                  "key": "type",
-                  "value": "ENRICHMENT"
-                }
-              ]
+              "query": [{ "key": "type", "value": "ENRICHMENT" }]
             }
           },
           "event": [
@@ -254,7 +310,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Cached idempotent response returned', function () {",
+                  "pm.test('Cached idempotent response returned with appliedRules', function () {",
                   "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
                   "  pm.expect(body.transaction.transactionReference).to.eql('TXN-ENRICH-001');",
@@ -267,18 +323,47 @@
           ]
         },
         {
+          "name": "Execute ENRICHMENT - Fingerprint Mismatch (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "enrichment-seed-001" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction\": {\n    \"transactionReference\": \"TXN-DIFFERENT\",\n    \"direction\": \"OUTBOUND\",\n    \"amount\": 50,\n    \"currency\": \"EUR\",\n    \"status\": \"PENDING\",\n    \"route\": null,\n    \"description\": null\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/rule-engine/execute?type=ENRICHMENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rule-engine", "execute"],
+              "query": [{ "key": "type", "value": "ENRICHMENT" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Different request with same key returns 409 conflict', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.errorCode).to.eql('IDEMPOTENCY_CONFLICT');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
           "name": "Execute ROUTING - High Value Wins",
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "routing-high-value-001"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "routing-high-value-001" }
             ],
             "body": {
               "mode": "raw",
@@ -288,12 +373,7 @@
               "raw": "{{baseUrl}}/api/rule-engine/execute?type=ROUTING",
               "host": ["{{baseUrl}}"],
               "path": ["api", "rule-engine", "execute"],
-              "query": [
-                {
-                  "key": "type",
-                  "value": "ROUTING"
-                }
-              ]
+              "query": [{ "key": "type", "value": "ROUTING" }]
             }
           },
           "event": [
@@ -319,14 +399,8 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "routing-usd-001"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "routing-usd-001" }
             ],
             "body": {
               "mode": "raw",
@@ -336,12 +410,7 @@
               "raw": "{{baseUrl}}/api/rule-engine/execute?type=ROUTING",
               "host": ["{{baseUrl}}"],
               "path": ["api", "rule-engine", "execute"],
-              "query": [
-                {
-                  "key": "type",
-                  "value": "ROUTING"
-                }
-              ]
+              "query": [{ "key": "type", "value": "ROUTING" }]
             }
           },
           "event": [
@@ -367,14 +436,8 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "routing-no-match-001"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "routing-no-match-001" }
             ],
             "body": {
               "mode": "raw",
@@ -384,12 +447,7 @@
               "raw": "{{baseUrl}}/api/rule-engine/execute?type=ROUTING",
               "host": ["{{baseUrl}}"],
               "path": ["api", "rule-engine", "execute"],
-              "query": [
-                {
-                  "key": "type",
-                  "value": "ROUTING"
-                }
-              ]
+              "query": [{ "key": "type", "value": "ROUTING" }]
             }
           },
           "event": [

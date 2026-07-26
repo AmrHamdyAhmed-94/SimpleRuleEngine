@@ -28,35 +28,45 @@ public class RuleEngineService {
     public RuleExecutionResponse execute(PaymentTransaction transaction, RuleType ruleType, String idempotencyKey) {
         String normalizedKey = StringUtils.hasText(idempotencyKey) ? idempotencyKey.trim() : null;
 
+        PaymentTransaction originalSnapshot = snapshotOf(transaction);
+
         if (normalizedKey != null) {
-            Optional<RuleExecutionResponse> cached = logService.resolveIdempotency(normalizedKey);
+            String fingerprint = logService.computeFingerprint(ruleType, originalSnapshot);
+            Optional<RuleExecutionResponse> cached = logService.resolveIdempotency(normalizedKey, fingerprint);
             if (cached.isPresent()) {
                 log.info("Returning idempotent response for key: {}", normalizedKey);
                 return cached.get();
             }
+
+            List<BusinessRule> rules = loadRules(ruleType);
+            return executeWithLog(transaction, rules, ruleType, normalizedKey, originalSnapshot, fingerprint);
         }
 
-        PaymentTransaction originalSnapshot = snapshotOf(transaction);
+        List<BusinessRule> rules = loadRules(ruleType);
+        return executeWithLog(transaction, rules, ruleType, null, originalSnapshot, null);
+    }
 
-        List<BusinessRule> rules = switch (ruleType) {
-            case ENRICHMENT -> businessRuleService.findEnabledByTypeAsc(ruleType);
-            case ROUTING -> businessRuleService.findEnabledByTypeDesc(ruleType);
-        };
-
+    private RuleExecutionResponse executeWithLog(PaymentTransaction transaction, List<BusinessRule> rules,
+                                                 RuleType ruleType, String normalizedKey,
+                                                 PaymentTransaction originalSnapshot, String fingerprint) {
         log.info("Executing {} rules: {} loaded", ruleType, rules.size());
-
         try {
             RuleExecutionStrategy strategy = strategyRegistry.getStrategy(ruleType);
             RuleExecutionResponse response = strategy.execute(transaction, rules);
-
             log.info("Execution complete: {} rule(s) applied", response.getAppliedRuleCount());
-
-            logService.saveSuccess(normalizedKey, originalSnapshot, response, ruleType);
+            logService.saveSuccess(normalizedKey, originalSnapshot, response, ruleType, fingerprint);
             return response;
         } catch (Exception ex) {
-            logService.saveFailure(normalizedKey, originalSnapshot, ruleType, ex.getMessage());
+            logService.saveFailure(normalizedKey, originalSnapshot, ruleType, ex.getMessage(), fingerprint);
             throw ex;
         }
+    }
+
+    private List<BusinessRule> loadRules(RuleType ruleType) {
+        return switch (ruleType) {
+            case ENRICHMENT -> businessRuleService.findEnabledByTypeAsc(ruleType);
+            case ROUTING -> businessRuleService.findEnabledByTypeDesc(ruleType);
+        };
     }
 
     private PaymentTransaction snapshotOf(PaymentTransaction tx) {

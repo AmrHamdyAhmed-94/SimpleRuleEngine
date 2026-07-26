@@ -24,18 +24,27 @@ public class GlobalExceptionHandler {
                         .build());
     }
 
+    @ExceptionHandler(DuplicateRuleCodeException.class)
+    public ResponseEntity<ErrorResponse> handleDuplicateRuleCode(DuplicateRuleCodeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.builder()
+                        .errorCode(ErrorCode.DUPLICATE_RULE_CODE.getCode())
+                        .message(ex.getMessage())
+                        .build());
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.builder()
-                        .errorCode(ErrorCode.DUPLICATE_RULE_CODE.getCode())
-                        .message(ErrorCode.DUPLICATE_RULE_CODE.getDefaultMessage())
+                        .errorCode(ErrorCode.DATA_INTEGRITY_VIOLATION.getCode())
+                        .message(ErrorCode.DATA_INTEGRITY_VIOLATION.getDefaultMessage())
                         .build());
     }
 
     @ExceptionHandler(InvalidRuleException.class)
     public ResponseEntity<ErrorResponse> handleInvalidRule(InvalidRuleException ex) {
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.builder()
                         .errorCode(ErrorCode.INVALID_RULE.getCode())
                         .message(ex.getMessage())

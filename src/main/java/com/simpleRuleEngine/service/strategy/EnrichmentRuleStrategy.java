@@ -10,6 +10,7 @@ import com.simpleRuleEngine.model.PaymentTransaction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
@@ -26,16 +27,13 @@ public class EnrichmentRuleStrategy implements RuleExecutionStrategy {
 
     @Override
     public RuleExecutionResponse execute(PaymentTransaction transaction, List<BusinessRule> rules) {
-        List<BusinessRule> matchedRules = rules.stream()
-                .filter(rule -> conditionEvaluator.evaluate(transaction, rule))
-                .toList();
-
-        matchedRules.forEach(rule -> actionExecutor.execute(transaction, rule));
-
-        List<AppliedRuleResponse> appliedRules = matchedRules.stream()
-                .map(this::toAppliedRuleResponse)
-                .toList();
-
+        List<AppliedRuleResponse> appliedRules = new ArrayList<>();
+        for (BusinessRule rule : rules) {
+            if (conditionEvaluator.evaluate(transaction, rule)) {
+                actionExecutor.execute(transaction, rule);
+                appliedRules.add(toAppliedRuleResponse(rule));
+            }
+        }
         return RuleExecutionResponse.builder()
                 .transaction(transaction)
                 .appliedRuleCount(appliedRules.size())
