@@ -1,9 +1,10 @@
-package com.simpleRuleEngine.service.strategy;
+package com.simpleRuleEngine.service.executor;
 
 import com.simpleRuleEngine.dto.response.RuleExecutionResponse;
 import com.simpleRuleEngine.engine.RuleActionExecutor;
 import com.simpleRuleEngine.engine.RuleConditionEvaluator;
 import com.simpleRuleEngine.entity.BusinessRule;
+import com.simpleRuleEngine.enums.ActionType;
 import com.simpleRuleEngine.enums.ConditionOperator;
 import com.simpleRuleEngine.enums.RuleType;
 import com.simpleRuleEngine.model.PaymentTransaction;
@@ -20,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class EnrichmentRuleStrategyTest {
+class EnrichmentRuleExecutorTest {
 
     @Mock
     private RuleConditionEvaluator conditionEvaluator;
@@ -29,7 +30,7 @@ class EnrichmentRuleStrategyTest {
     private RuleActionExecutor actionExecutor;
 
     @InjectMocks
-    private EnrichmentRuleStrategy strategy;
+    private EnrichmentRuleExecutor executor;
 
     private PaymentTransaction baseTransaction() {
         return PaymentTransaction.builder()
@@ -49,6 +50,7 @@ class EnrichmentRuleStrategyTest {
                 .conditionField("currency")
                 .conditionOperator(ConditionOperator.EQUALS)
                 .conditionValue("USD")
+                .actionType(ActionType.SET_VALUE)
                 .actionField("status")
                 .actionValue("ENRICHED")
                 .priority(priority)
@@ -66,7 +68,7 @@ class EnrichmentRuleStrategyTest {
         when(conditionEvaluator.evaluate(tx, rule2)).thenReturn(true);
         when(conditionEvaluator.evaluate(tx, rule3)).thenReturn(true);
 
-        RuleExecutionResponse response = strategy.execute(tx, List.of(rule1, rule2, rule3));
+        RuleExecutionResponse response = executor.execute(tx, List.of(rule1, rule2, rule3));
 
         assertThat(response.getAppliedRuleCount()).isEqualTo(3);
         assertThat(response.getAppliedRules()).extracting("ruleCode")
@@ -85,7 +87,7 @@ class EnrichmentRuleStrategyTest {
         when(conditionEvaluator.evaluate(tx, rule1)).thenReturn(true);
         when(conditionEvaluator.evaluate(tx, rule2)).thenReturn(false);
 
-        RuleExecutionResponse response = strategy.execute(tx, List.of(rule1, rule2));
+        RuleExecutionResponse response = executor.execute(tx, List.of(rule1, rule2));
 
         assertThat(response.getAppliedRuleCount()).isEqualTo(1);
         assertThat(response.getAppliedRules()).extracting("ruleCode").containsExactly("ENRICH_001");
@@ -94,13 +96,13 @@ class EnrichmentRuleStrategyTest {
     }
 
     @Test
-    void execute_returnsZeroAppliedRules_whenNoRulesMatch() {
+    void execute_returnsZeroApplied_whenNoRulesMatch() {
         PaymentTransaction tx = baseTransaction();
         BusinessRule rule1 = rule("ENRICH_001", 1);
 
         when(conditionEvaluator.evaluate(tx, rule1)).thenReturn(false);
 
-        RuleExecutionResponse response = strategy.execute(tx, List.of(rule1));
+        RuleExecutionResponse response = executor.execute(tx, List.of(rule1));
 
         assertThat(response.getAppliedRuleCount()).isEqualTo(0);
         assertThat(response.getAppliedRules()).isEmpty();
@@ -109,10 +111,10 @@ class EnrichmentRuleStrategyTest {
     }
 
     @Test
-    void execute_returnsZeroAppliedRules_whenRuleListIsEmpty() {
+    void execute_returnsZeroApplied_whenRuleListIsEmpty() {
         PaymentTransaction tx = baseTransaction();
 
-        RuleExecutionResponse response = strategy.execute(tx, List.of());
+        RuleExecutionResponse response = executor.execute(tx, List.of());
 
         assertThat(response.getAppliedRuleCount()).isEqualTo(0);
         assertThat(response.getAppliedRules()).isEmpty();
@@ -120,7 +122,17 @@ class EnrichmentRuleStrategyTest {
     }
 
     @Test
-    void getRuleType_returnsEnrichment() {
-        assertThat(strategy.getRuleType()).isEqualTo(RuleType.ENRICHMENT);
+    void execute_appliedRuleDetailsAreCorrect() {
+        PaymentTransaction tx = baseTransaction();
+        BusinessRule rule = rule("ENRICH_STATUS", 15);
+
+        when(conditionEvaluator.evaluate(tx, rule)).thenReturn(true);
+
+        RuleExecutionResponse response = executor.execute(tx, List.of(rule));
+
+        assertThat(response.getAppliedRules()).hasSize(1);
+        assertThat(response.getAppliedRules().get(0).getRuleCode()).isEqualTo("ENRICH_STATUS");
+        assertThat(response.getAppliedRules().get(0).getName()).isEqualTo("Rule ENRICH_STATUS");
+        assertThat(response.getAppliedRules().get(0).getPriority()).isEqualTo(15);
     }
 }

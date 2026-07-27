@@ -1,5 +1,6 @@
 package com.simpleRuleEngine.entity;
 
+import com.simpleRuleEngine.enums.ActionType;
 import com.simpleRuleEngine.enums.ConditionOperator;
 import com.simpleRuleEngine.enums.RuleType;
 import jakarta.persistence.*;
@@ -37,6 +38,11 @@ public class BusinessRule {
 
     @Column(name = "condition_value", nullable = false)
     private String conditionValue;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "action_type", nullable = false)
+    @Builder.Default
+    private ActionType actionType = ActionType.SET_VALUE;
 
     @Column(name = "action_field", nullable = false)
     private String actionField;

@@ -1,6 +1,7 @@
 package com.simpleRuleEngine.engine;
 
 import com.simpleRuleEngine.entity.BusinessRule;
+import com.simpleRuleEngine.enums.ActionType;
 import com.simpleRuleEngine.enums.ConditionOperator;
 import com.simpleRuleEngine.enums.RuleType;
 import com.simpleRuleEngine.exception.InvalidRuleException;
@@ -30,6 +31,7 @@ class RuleActionExecutorTest {
                 .conditionField("currency")
                 .conditionOperator(ConditionOperator.EQUALS)
                 .conditionValue("USD")
+                .actionType(ActionType.SET_VALUE)
                 .actionField(actionField)
                 .actionValue(actionValue)
                 .priority(1)
@@ -47,52 +49,58 @@ class RuleActionExecutorTest {
     }
 
     @Test
-    void execute_updatesStringField() {
+    void setValue_updatesStringField() {
         PaymentTransaction tx = baseTransaction();
-        BusinessRule rule = ruleWithAction("route", "PRIORITY_LANE");
-
-        executor.execute(tx, rule);
-
+        executor.execute(tx, ruleWithAction("route", "PRIORITY_LANE"));
         assertThat(tx.getRoute()).isEqualTo("PRIORITY_LANE");
     }
 
     @Test
-    void execute_updatesStatusField() {
+    void setValue_updatesStatusField() {
         PaymentTransaction tx = baseTransaction();
-        BusinessRule rule = ruleWithAction("status", "APPROVED");
-
-        executor.execute(tx, rule);
-
+        executor.execute(tx, ruleWithAction("status", "APPROVED"));
         assertThat(tx.getStatus()).isEqualTo("APPROVED");
     }
 
     @Test
-    void execute_updatesBigDecimalField() {
+    void setValue_updatesBigDecimalField() {
         PaymentTransaction tx = baseTransaction();
-        BusinessRule rule = ruleWithAction("amount", "9999.99");
-
-        executor.execute(tx, rule);
-
+        executor.execute(tx, ruleWithAction("amount", "9999.99"));
         assertThat(tx.getAmount()).isEqualByComparingTo(new BigDecimal("9999.99"));
     }
 
     @Test
-    void execute_updatesDescriptionField() {
+    void setValue_updatesDescriptionField() {
         PaymentTransaction tx = baseTransaction();
-        BusinessRule rule = ruleWithAction("description", "Enriched by rule");
-
-        executor.execute(tx, rule);
-
+        executor.execute(tx, ruleWithAction("description", "Enriched by rule"));
         assertThat(tx.getDescription()).isEqualTo("Enriched by rule");
     }
 
     @Test
-    void execute_invalidActionField_throwsInvalidRuleException() {
+    void setValue_invalidActionField_throwsInvalidRuleException() {
         PaymentTransaction tx = baseTransaction();
-        BusinessRule rule = ruleWithAction("nonExistentField", "someValue");
-
-        assertThatThrownBy(() -> executor.execute(tx, rule))
+        assertThatThrownBy(() -> executor.execute(tx, ruleWithAction("nonExistentField", "someValue")))
                 .isInstanceOf(InvalidRuleException.class)
                 .hasMessageContaining("nonExistentField");
+    }
+
+    @Test
+    void nullActionType_throwsInvalidRuleException() {
+        PaymentTransaction tx = baseTransaction();
+        BusinessRule rule = BusinessRule.builder()
+                .ruleCode("NULL_TYPE")
+                .name("Null Type")
+                .ruleType(RuleType.ENRICHMENT)
+                .conditionField("currency")
+                .conditionOperator(ConditionOperator.EQUALS)
+                .conditionValue("USD")
+                .actionType(null)
+                .actionField("status")
+                .actionValue("X")
+                .priority(1)
+                .build();
+        assertThatThrownBy(() -> executor.execute(tx, rule))
+                .isInstanceOf(InvalidRuleException.class)
+                .hasMessageContaining("must not be null");
     }
 }

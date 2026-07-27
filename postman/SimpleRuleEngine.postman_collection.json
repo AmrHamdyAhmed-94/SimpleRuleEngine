@@ -254,8 +254,7 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "enrichment-seed-001" }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
@@ -273,7 +272,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Enrichment executed or idempotent response returned', function () {",
+                  "pm.test('Enrichment executed successfully', function () {",
                   "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
                   "  pm.expect(body.transaction.status).to.eql('RECEIVED');",
@@ -287,83 +286,11 @@
           ]
         },
         {
-          "name": "Execute ENRICHMENT - Same Idempotency Key (cached response)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "enrichment-seed-001" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"transaction\": {\n    \"transactionReference\": \"TXN-ENRICH-001\",\n    \"direction\": \"INBOUND\",\n    \"amount\": 6000,\n    \"currency\": \"USD\",\n    \"status\": \"PENDING\",\n    \"route\": null,\n    \"description\": null\n  }\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/rule-engine/execute?type=ENRICHMENT",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "rule-engine", "execute"],
-              "query": [{ "key": "type", "value": "ENRICHMENT" }]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Cached idempotent response returned with appliedRules', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.transaction.transactionReference).to.eql('TXN-ENRICH-001');",
-                  "  pm.expect(body.appliedRules).to.be.an('array').that.is.not.empty;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Execute ENRICHMENT - Fingerprint Mismatch (409)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "enrichment-seed-001" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"transaction\": {\n    \"transactionReference\": \"TXN-DIFFERENT\",\n    \"direction\": \"OUTBOUND\",\n    \"amount\": 50,\n    \"currency\": \"EUR\",\n    \"status\": \"PENDING\",\n    \"route\": null,\n    \"description\": null\n  }\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/rule-engine/execute?type=ENRICHMENT",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "rule-engine", "execute"],
-              "query": [{ "key": "type", "value": "ENRICHMENT" }]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Different request with same key returns 409 conflict', function () {",
-                  "  pm.response.to.have.status(409);",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.errorCode).to.eql('IDEMPOTENCY_CONFLICT');",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
           "name": "Execute ROUTING - High Value Wins",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "routing-high-value-001" }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
@@ -399,8 +326,7 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "routing-usd-001" }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
@@ -436,8 +362,7 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Idempotency-Key", "value": "routing-no-match-001" }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",

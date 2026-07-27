@@ -1,11 +1,10 @@
-package com.simpleRuleEngine.service.strategy;
+package com.simpleRuleEngine.service.executor;
 
 import com.simpleRuleEngine.dto.response.AppliedRuleResponse;
 import com.simpleRuleEngine.dto.response.RuleExecutionResponse;
 import com.simpleRuleEngine.engine.RuleActionExecutor;
 import com.simpleRuleEngine.engine.RuleConditionEvaluator;
 import com.simpleRuleEngine.entity.BusinessRule;
-import com.simpleRuleEngine.enums.RuleType;
 import com.simpleRuleEngine.model.PaymentTransaction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -14,15 +13,10 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-public class RoutingRuleStrategy implements RuleExecutionStrategy {
+public class RoutingRuleExecutor implements RuleExecutor {
 
     private final RuleConditionEvaluator conditionEvaluator;
     private final RuleActionExecutor actionExecutor;
-
-    @Override
-    public RuleType getRuleType() {
-        return RuleType.ROUTING;
-    }
 
     @Override
     public RuleExecutionResponse execute(PaymentTransaction transaction, List<BusinessRule> rules) {

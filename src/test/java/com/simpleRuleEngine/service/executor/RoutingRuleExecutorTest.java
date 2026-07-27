@@ -1,9 +1,10 @@
-package com.simpleRuleEngine.service.strategy;
+package com.simpleRuleEngine.service.executor;
 
 import com.simpleRuleEngine.dto.response.RuleExecutionResponse;
 import com.simpleRuleEngine.engine.RuleActionExecutor;
 import com.simpleRuleEngine.engine.RuleConditionEvaluator;
 import com.simpleRuleEngine.entity.BusinessRule;
+import com.simpleRuleEngine.enums.ActionType;
 import com.simpleRuleEngine.enums.ConditionOperator;
 import com.simpleRuleEngine.enums.RuleType;
 import com.simpleRuleEngine.model.PaymentTransaction;
@@ -20,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class RoutingRuleStrategyTest {
+class RoutingRuleExecutorTest {
 
     @Mock
     private RuleConditionEvaluator conditionEvaluator;
@@ -29,7 +30,7 @@ class RoutingRuleStrategyTest {
     private RuleActionExecutor actionExecutor;
 
     @InjectMocks
-    private RoutingRuleStrategy strategy;
+    private RoutingRuleExecutor executor;
 
     private PaymentTransaction baseTransaction() {
         return PaymentTransaction.builder()
@@ -49,6 +50,7 @@ class RoutingRuleStrategyTest {
                 .conditionField("currency")
                 .conditionOperator(ConditionOperator.EQUALS)
                 .conditionValue("USD")
+                .actionType(ActionType.SET_VALUE)
                 .actionField("route")
                 .actionValue("LANE_A")
                 .priority(priority)
@@ -63,7 +65,7 @@ class RoutingRuleStrategyTest {
 
         when(conditionEvaluator.evaluate(tx, rule1)).thenReturn(true);
 
-        RuleExecutionResponse response = strategy.execute(tx, List.of(rule1, rule2));
+        RuleExecutionResponse response = executor.execute(tx, List.of(rule1, rule2));
 
         assertThat(response.getAppliedRuleCount()).isEqualTo(1);
         assertThat(response.getAppliedRules()).extracting("ruleCode").containsExactly("ROUTE_001");
@@ -73,7 +75,7 @@ class RoutingRuleStrategyTest {
     }
 
     @Test
-    void execute_skipsFirstRule_andAppliesSecond_whenFirstDoesNotMatch() {
+    void execute_skipsFirstNonMatchingRule_andAppliesSecond() {
         PaymentTransaction tx = baseTransaction();
         BusinessRule rule1 = rule("ROUTE_001", 10);
         BusinessRule rule2 = rule("ROUTE_002", 5);
@@ -81,7 +83,7 @@ class RoutingRuleStrategyTest {
         when(conditionEvaluator.evaluate(tx, rule1)).thenReturn(false);
         when(conditionEvaluator.evaluate(tx, rule2)).thenReturn(true);
 
-        RuleExecutionResponse response = strategy.execute(tx, List.of(rule1, rule2));
+        RuleExecutionResponse response = executor.execute(tx, List.of(rule1, rule2));
 
         assertThat(response.getAppliedRuleCount()).isEqualTo(1);
         assertThat(response.getAppliedRules()).extracting("ruleCode").containsExactly("ROUTE_002");
@@ -90,13 +92,13 @@ class RoutingRuleStrategyTest {
     }
 
     @Test
-    void execute_returnsEmptyAppliedRules_whenNoRulesMatch() {
+    void execute_returnsZeroApplied_whenNoRulesMatch() {
         PaymentTransaction tx = baseTransaction();
         BusinessRule rule1 = rule("ROUTE_001", 10);
 
         when(conditionEvaluator.evaluate(tx, rule1)).thenReturn(false);
 
-        RuleExecutionResponse response = strategy.execute(tx, List.of(rule1));
+        RuleExecutionResponse response = executor.execute(tx, List.of(rule1));
 
         assertThat(response.getAppliedRuleCount()).isEqualTo(0);
         assertThat(response.getAppliedRules()).isEmpty();
@@ -105,10 +107,10 @@ class RoutingRuleStrategyTest {
     }
 
     @Test
-    void execute_returnsEmptyAppliedRules_whenRuleListIsEmpty() {
+    void execute_returnsZeroApplied_whenRuleListIsEmpty() {
         PaymentTransaction tx = baseTransaction();
 
-        RuleExecutionResponse response = strategy.execute(tx, List.of());
+        RuleExecutionResponse response = executor.execute(tx, List.of());
 
         assertThat(response.getAppliedRuleCount()).isEqualTo(0);
         assertThat(response.getAppliedRules()).isEmpty();
@@ -116,7 +118,16 @@ class RoutingRuleStrategyTest {
     }
 
     @Test
-    void getRuleType_returnsRouting() {
-        assertThat(strategy.getRuleType()).isEqualTo(RuleType.ROUTING);
+    void execute_appliedRuleDetailsAreCorrect() {
+        PaymentTransaction tx = baseTransaction();
+        BusinessRule rule = rule("ROUTE_HIGH_VALUE", 100);
+
+        when(conditionEvaluator.evaluate(tx, rule)).thenReturn(true);
+
+        RuleExecutionResponse response = executor.execute(tx, List.of(rule));
+
+        assertThat(response.getAppliedRules()).hasSize(1);
+        assertThat(response.getAppliedRules().get(0).getRuleCode()).isEqualTo("ROUTE_HIGH_VALUE");
+        assertThat(response.getAppliedRules().get(0).getPriority()).isEqualTo(100);
     }
 }

@@ -13,7 +13,6 @@ public enum ErrorCode {
     INVALID_RULE("INVALID_RULE", "Rule configuration is invalid"),
     UNSUPPORTED_RULE_TYPE("UNSUPPORTED_RULE_TYPE", "Unsupported rule type"),
     VALIDATION_FAILED("VALIDATION_FAILED", "Validation failed"),
-    IDEMPOTENCY_CONFLICT("IDEMPOTENCY_CONFLICT", "A previous execution with this idempotency key has already failed"),
     INTERNAL_SERVER_ERROR("INTERNAL_SERVER_ERROR", "An unexpected error occurred");
 
     private final String code;

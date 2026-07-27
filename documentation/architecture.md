@@ -44,7 +44,6 @@ Allowed supporting packages when needed:
 ```text
 exception
 model
-strategy
 engine
 util
 ```
@@ -72,6 +71,7 @@ Each rule has:
 - `conditionField`
 - `conditionOperator`
 - `conditionValue`
+- `actionType`
 - `actionField`
 - `actionValue`
 - `priority`
@@ -85,7 +85,7 @@ Each rule means:
 
 ```text
 When conditionField conditionOperator conditionValue,
-set actionField to actionValue.
+perform actionType on actionField using actionValue.
 ```
 
 ### Rule Types
@@ -108,32 +108,42 @@ Supported condition operators:
 
 ### Action Model
 
-For the first version, every action is a simple SET action:
+Actions are scalable through `ActionType`. Each rule carries an `actionType` that tells the action executor how to apply the action.
 
-```text
-transaction[actionField] = actionValue
-```
+Currently supported action types:
 
-Do not add `ActionType` unless the requirement changes.
+- `SET_VALUE` — writes `actionValue` into `actionField` on the transaction using `BeanWrapperImpl`
+
+To add a new action type, add the value to `ActionType` and add a `case` in `RuleActionExecutor.execute()`. No table changes are needed.
 
 ## Execution Design
 
-Use the Strategy Pattern for rule execution behavior:
+Rule type execution uses simple polymorphism through the `RuleExecutor` interface in `service/executor`.
 
-```text
-RuleExecutionStrategy
-├── EnrichmentRuleStrategy
-└── RoutingRuleStrategy
+`EnrichmentRuleExecutor` and `RoutingRuleExecutor` each implement `RuleExecutor` with their own execution behavior:
+
+- `EnrichmentRuleExecutor` evaluates every rule and applies all that match, in the order they are received.
+- `RoutingRuleExecutor` evaluates rules and applies only the first match, then stops.
+
+`RuleEngineService` injects both executors directly and selects which one to call based on `RuleType`:
+
+```
+RuleEngineService.execute()
+  ├── ENRICHMENT → enrichmentRuleExecutor.execute()
+  └── ROUTING   → routingRuleExecutor.execute()
 ```
 
-Use a Spring-managed registry/factory to select the correct strategy based on `RuleType`.
+There is no registry or factory. The selection is a plain switch on `RuleType`.
 
-Shared rule logic belongs outside the individual strategies when possible:
+`RuleConditionEvaluator` evaluates whether a rule's condition matches the current transaction state.
 
-- condition evaluation
-- action execution
-- value conversion
-- applied rule response mapping
+`RuleActionExecutor` applies the rule's action. It switches on `ActionType` to dispatch to the correct logic.
+
+Shared rule logic stays in dedicated components rather than duplicated across execution paths:
+
+- condition evaluation — `RuleConditionEvaluator`
+- action execution — `RuleActionExecutor`
+- field existence validation at create/update time — `RuleFieldValidator`
 
 ## Priority Convention
 
@@ -141,18 +151,16 @@ Higher number means higher priority.
 
 For `ENRICHMENT`:
 
-- load enabled enrichment rules
-- sort by priority ascending
-- evaluate every rule
-- apply every matching rule
-- higher-priority rules run later and win if they update the same field
+- load enabled enrichment rules ordered by priority ascending
+- evaluate every rule against the transaction
+- apply every matching rule — higher-priority rules run later and win if they write the same field
+- a rule can see changes made by an earlier rule in the same pass
 
 For `ROUTING`:
 
-- load enabled routing rules
-- sort by priority descending
-- apply the first matching rule
-- stop immediately
+- load enabled routing rules ordered by priority descending
+- apply the first matching rule and stop
+- only one route is ever assigned per execution
 
 ## APIs
 

@@ -1,5 +1,6 @@
 package com.simpleRuleEngine.dto.request;
 
+import com.simpleRuleEngine.enums.ActionType;
 import com.simpleRuleEngine.enums.ConditionOperator;
 import com.simpleRuleEngine.enums.RuleType;
 import jakarta.validation.constraints.NotBlank;
@@ -27,6 +28,8 @@ public class BusinessRuleUpdateRequest {
 
     @NotBlank
     private String conditionValue;
+
+    private ActionType actionType;
 
     @NotBlank
     private String actionField;

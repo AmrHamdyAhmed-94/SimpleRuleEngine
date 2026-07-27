@@ -77,11 +77,11 @@ Do not create utilities for one-line logic used once.
 
 Use Spring `BeanWrapper` for dynamic field reads and writes against `PaymentTransaction`.
 
-Keep condition evaluation and action execution separate from strategy selection:
+Keep condition evaluation, action execution, and rule type execution separate:
 
-- strategies decide execution flow
+- rule executors decide execution flow
 - evaluator decides whether a rule matches
-- executor applies the rule action
+- action handlers apply rule actions
 
 ## Controller Style
 

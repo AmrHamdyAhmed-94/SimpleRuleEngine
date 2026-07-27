@@ -51,15 +51,6 @@ public class GlobalExceptionHandler {
                         .build());
     }
 
-    @ExceptionHandler(IdempotencyConflictException.class)
-    public ResponseEntity<ErrorResponse> handleIdempotencyConflict(IdempotencyConflictException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponse.builder()
-                        .errorCode(ErrorCode.IDEMPOTENCY_CONFLICT.getCode())
-                        .message(ex.getMessage())
-                        .build());
-    }
-
     @ExceptionHandler(UnsupportedRuleTypeException.class)
     public ResponseEntity<ErrorResponse> handleUnsupportedRuleType(UnsupportedRuleTypeException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

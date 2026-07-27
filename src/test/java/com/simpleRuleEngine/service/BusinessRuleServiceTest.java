@@ -5,6 +5,7 @@ import com.simpleRuleEngine.dto.request.BusinessRuleUpdateRequest;
 import com.simpleRuleEngine.dto.response.BusinessRuleResponse;
 import com.simpleRuleEngine.engine.RuleFieldValidator;
 import com.simpleRuleEngine.entity.BusinessRule;
+import com.simpleRuleEngine.enums.ActionType;
 import com.simpleRuleEngine.enums.ConditionOperator;
 import com.simpleRuleEngine.enums.RuleType;
 import com.simpleRuleEngine.exception.DuplicateRuleCodeException;
@@ -81,6 +82,7 @@ class BusinessRuleServiceTest {
                 .conditionField("amount")
                 .conditionOperator(ConditionOperator.GREATER_THAN)
                 .conditionValue("1000")
+                .actionType(ActionType.SET_VALUE)
                 .actionField("route")
                 .actionValue("PRIORITY")
                 .priority(10)
@@ -96,11 +98,18 @@ class BusinessRuleServiceTest {
                 .conditionField(rule.getConditionField())
                 .conditionOperator(rule.getConditionOperator())
                 .conditionValue(rule.getConditionValue())
+                .actionType(rule.getActionType())
                 .actionField(rule.getActionField())
                 .actionValue(rule.getActionValue())
                 .priority(rule.getPriority())
                 .enabled(rule.getEnabled())
                 .build();
+    }
+
+    @Test
+    void create_defaultsActionTypeToSetValue_whenNotProvided() {
+        BusinessRuleCreateRequest req = validCreateRequest();
+        assertThat(req.getActionType()).isEqualTo(ActionType.SET_VALUE);
     }
 
     @Test
